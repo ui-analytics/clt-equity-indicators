@@ -2,7 +2,7 @@
 
 Official Repository of Charlotte Equity Indicators Project 
 
-## Project Summary
+### Project Summary
 
 
-## Personnel
+### Personnel
