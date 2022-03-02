@@ -1,0 +1,323 @@
+---
+title: "Census Data"
+author: "Pratik Chaudhari"
+date: "2/8/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Import packages
+
+```{r}
+library(tidyverse)
+library(tidycensus)
+library(readxl)
+library(srvyr, warn.conflicts = FALSE)
+library(fuzzyjoin)
+```
+Census key
+
+```{r}
+#census_api_key('enter-api-key',install = T)
+```
+Variable list
+```{r}
+#pums_vars <- c('PUMA','NP','RELP','RELSHIPP','PWGTP','WGTP','WGTP1','WGTP80','HINCP','ADJINC','RAC1P','FINCP','HUPAC','TEN')
+pums_vars <- c('PUMA','NP','RELP','FS','RELSHIPP','HINCP','ADJINC','RAC1P','FINCP','HUPAC','TEN','GRPIP','AGEP','ESR'
+               ,'PINCP','WKHP','COW','HICOV','SCHL','JWMNP','HISP','INDP','POVPIP','NAICSP','WAGP','ELEP','HISPEED','KIT','SCHL','WAGEP','MRGP','RNTP','JWTR','JWTRNS','VEH','SCHG')
+pums_years <- c(2018,2019)
+state_fetch <- "NC"
+rename_list <- c("RELP" = "RELSHIPP",'JWTR' = 'JWTRNS')
+puma_filter <- c(3101,3102,3103,3104,3105,3106,3107,3108)
+relp_filter <- c(0,16,17,20,38,37)
+```
+
+Fetch PUMS data for specified years
+
+```{r}
+
+if(exists("pums_data"))
+{
+  rm(pums_data)
+}
+
+for (year_val in pums_years){
+  pums_vars_filtered <- pums_variables %>% filter(year == year_val, survey == 'acs1') %>% filter(var_code %in% pums_vars) %>% 
+  distinct(var_code, var_label, data_type, level)
+  
+  pums_data_subset <- get_pums(
+  variables = pums_vars_filtered$var_code,
+  state = state_fetch,
+  survey = "acs1",
+  year = year_val
+  ,rep_weights = "both"
+  ) %>% rename(any_of(rename_list)) %>% mutate(YEAR = year_val)
+  
+  if(!exists("pums_data"))
+  {
+    pums_data <- pums_data_subset
+  }
+  else
+  {
+    pums_data <- rbind(pums_data,pums_data_subset)
+  }
+  
+}
+
+
+```
+
+PUMS KEEP ONLY HU SERIAL NOs
+```{r}
+pums_data <- pums_data %>% filter(str_detect(SERIALNO,'HU'))
+```
+
+
+Filter pumas
+```{r}
+pums_data <- pums_data %>% filter(as.integer(PUMA) %in% puma_filter)
+```
+
+Auto derive column data types
+
+```{r}
+
+pums_data <- type.convert(pums_data, as.is = TRUE)
+```
+
+
+Calculate Adj household income
+
+```{r}
+pums_data <- pums_data %>% mutate(ADJ_HINCP = (HINCP * ADJINC)
+                                  ,ADJ_FINCP = (FINCP * ADJINC)
+                                  ,ADJ_PINCP = PINCP * ADJINC)
+```
+
+
+Read Poverty Level files
+
+```{r}
+pov_rate_gl <- read_xlsx('C:/Users/pchaudh3/Dropbox (UNC Charlotte)/UI-Equity Indicators/clt-equity-indicators/Analysis/Poverty Rate Guidelines.xlsx')
+
+pove_gl_years <- as.integer(unique(pov_rate_gl$`Survey Year`))
+pums_data <- pums_data  %>% rowwise() %>%  mutate(POV_GUIDELINE_YEAR = max(pove_gl_years[pove_gl_years <= YEAR])) %>% ungroup()
+```
+  
+
+Get Poverty Level and set Flags
+
+```{r}
+pums_data <- pums_data %>% inner_join(pov_rate_gl,by = c('POV_GUIDELINE_YEAR'='Survey Year'))
+
+pums_data <- pums_data %>% mutate(pov_level_threshold_calc = (`First Person` + (if_else(NP > 1, (NP-1),0 ) * `Each Additional Person`)))
+
+pums_data <- pums_data %>% mutate(POV_FAM = if_else(ADJ_HINCP<= pov_level_threshold_calc,1,0))
+```
+
+Set Flag for Home Ownership
+
+```{r}
+pums_data <- pums_data %>% mutate(HOMEOWN = if_else(TEN < 3,1,0))
+pums_data <- pums_data %>% mutate(RENT_BURDEN = if_else(GRPIP >= 30,1,0))
+pums_data <- pums_data %>% mutate(SELFEMPL = if_else(COW %in% c('6','7'),1,0))
+pums_data <- pums_data %>% mutate(BACHELOR = if_else(SCHL >= 21 ,1,0))
+```
+Write Data to file
+
+```{r}
+write.csv(pums_data,'../../../Data/PUMS_2018_2019.csv',row.names = F)
+```
+
+
+```{r}
+pums_data_srvy_h <- to_survey(pums_data %>% filter(as.integer(RELP) %in% relp_filter) ,type = 'housing')
+pums_data_srvy_p <- to_survey(pums_data ,type = 'person')
+```
+
+
+Calculate Vars
+```{r}
+df_pums_race_year <- pums_data_srvy_h %>% survey_count(YEAR,RAC1P,vartype = c('se','ci','cv'),name='VALUE') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(INDICATOR = 'DISTRIBUTION OF RACE BY YEAR')
+
+df_pums_race_percentge <- pums_data_srvy_h %>% group_by(YEAR,RAC1P) %>% summarise(VALUE = survey_prop(vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'Population Percentage',INDICATOR_VALUE = as.double('')) %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(var_code = '')
+
+
+df_pums_race_median_hh_income <-  rbind(pums_data_srvy_h %>% group_by(YEAR,RAC1P) %>% 
+  summarise(VALUE = survey_quantile(ADJ_HINCP,c(0.25),vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'MEDIAN HOUSEHOLD INCOME - 25 PCTL',INDICATOR_VALUE = as.double('')) %>% rename(VALUE = VALUE_q25,STANDARD_ERROR = VALUE_q25_se,CONFIDENCE_INTERVAL_LOW = VALUE_q25_low,CONFIDENCE_INTERVAL_HIGH = VALUE_q25_upp,COEFFICIENT_OF_VARIANCE = VALUE_q25_cv)
+  ,pums_data_srvy_h %>% group_by(YEAR,RAC1P) %>% 
+  summarise(VALUE = survey_quantile(ADJ_HINCP,c(0.50),vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'MEDIAN HOUSEHOLD INCOME - 50 PCTL',INDICATOR_VALUE = as.double('')) %>% rename(VALUE = VALUE_q50,STANDARD_ERROR = VALUE_q50_se,CONFIDENCE_INTERVAL_LOW = VALUE_q50_low,CONFIDENCE_INTERVAL_HIGH = VALUE_q50_upp,COEFFICIENT_OF_VARIANCE = VALUE_q50_cv)
+  ,pums_data_srvy_h %>% group_by(YEAR,RAC1P) %>% 
+  summarise(VALUE = survey_quantile(ADJ_HINCP,c(0.75),vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'MEDIAN HOUSEHOLD INCOME - 75 PCTL',INDICATOR_VALUE = as.double('')) %>% rename(VALUE = VALUE_q75,STANDARD_ERROR = VALUE_q75_se,CONFIDENCE_INTERVAL_LOW = VALUE_q75_low,CONFIDENCE_INTERVAL_HIGH = VALUE_q75_upp,COEFFICIENT_OF_VARIANCE = VALUE_q75_cv)) %>% mutate(var_code = '')
+            
+ df_pums_race_median_fam_income <-  rbind(pums_data_srvy_h %>% group_by(YEAR,RAC1P) %>% 
+  summarise(VALUE = survey_quantile(ADJ_FINCP,c(0.25),vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'MEDIAN FAMILY INCOME - 25 PCTL',INDICATOR_VALUE = as.double('')) %>% rename(VALUE = VALUE_q25,STANDARD_ERROR = VALUE_q25_se,CONFIDENCE_INTERVAL_LOW = VALUE_q25_low,CONFIDENCE_INTERVAL_HIGH = VALUE_q25_upp,COEFFICIENT_OF_VARIANCE = VALUE_q25_cv)
+  ,pums_data_srvy_h %>% group_by(YEAR,RAC1P) %>% 
+  summarise(VALUE = survey_quantile(ADJ_FINCP,c(0.50),vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'MEDIAN FAMILY INCOME - 50 PCTL',INDICATOR_VALUE = as.double('')) %>% rename(VALUE = VALUE_q50,STANDARD_ERROR = VALUE_q50_se,CONFIDENCE_INTERVAL_LOW = VALUE_q50_low,CONFIDENCE_INTERVAL_HIGH = VALUE_q50_upp,COEFFICIENT_OF_VARIANCE = VALUE_q50_cv)
+  ,pums_data_srvy_h %>% group_by(YEAR,RAC1P) %>% 
+  summarise(VALUE = survey_quantile(ADJ_FINCP,c(0.75),vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'MEDIAN FAMILY INCOME - 75 PCTL',INDICATOR_VALUE = as.double('')) %>% rename(VALUE = VALUE_q75,STANDARD_ERROR = VALUE_q75_se,CONFIDENCE_INTERVAL_LOW = VALUE_q75_low,CONFIDENCE_INTERVAL_HIGH = VALUE_q75_upp,COEFFICIENT_OF_VARIANCE = VALUE_q75_cv)) %>% mutate(var_code = '')
+    
+
+df_pums_race_pov_percentge <- pums_data_srvy_h %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=POV_FAM) %>% summarise(VALUE = survey_prop(vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'Percentage Families - Below Poverty') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(var_code = 'POV_FAM')
+
+df_pums_race_c17_pov_percentge <- pums_data_srvy_h %>% filter(HUPAC < 4) %>% 
+  group_by(YEAR,RAC1P,INDICATOR_VALUE=POV_FAM) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv')))  %>% mutate(INDICATOR = 'PERCENTAGE FAMILIES WITH CHILDREN UNDER  17') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(var_code = 'POV_FAM')
+
+df_pums_race_c17_rcv_pov_percentge <- pums_data_srvy_h %>% filter(HUPAC < 4) %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=FS) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv')))  %>% mutate(INDICATOR = 'PERCENT FAMILIES WITH CHILD FOOD INSECUTIRY') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(var_code = 'FS')
+
+
+df_pums_race_homeown <- pums_data_srvy_h %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=HOMEOWN) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv')))  %>% mutate(INDICATOR = 'PERCENTAGE HOME OWNERSHIP') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(var_code = 'HOMEOWN')
+
+df_pums_race_rent_burden <- pums_data_srvy_h %>% filter(TEN == 3) %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=RENT_BURDEN) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv')))  %>% mutate(INDICATOR = 'PERCENTAGE HOUSEHOLDS RENT BURDNED') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv)%>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(var_code = 'RENT_BURDEN') 
+
+df_pums_ind_lf_np <- pums_data_srvy_p %>% filter(RAC1P ==1 , AGEP >=25 , AGEP <64 , ESR !=4 ,ESR !=5) %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=ESR) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'PERCENTAGE LABOR FORCE NON-PARTICIPATION') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(INDICATOR_VALUE = as.double(INDICATOR_VALUE)) %>% mutate(var_code = 'ESR')
+
+ df_pums_ind_prsnl_inc_median <-  rbind(pums_data_srvy_p %>% filter(AGEP >=25,AGEP <64,ESR ==1,WKHP >=30) %>%group_by(YEAR,RAC1P) %>% 
+  summarise(VALUE = survey_quantile(ADJ_PINCP,c(0.25),vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'MEDIAN PERSONAL INCOME - 25 PCTL',INDICATOR_VALUE = as.double('')) %>% rename(VALUE = VALUE_q25,STANDARD_ERROR = VALUE_q25_se,CONFIDENCE_INTERVAL_LOW = VALUE_q25_low,CONFIDENCE_INTERVAL_HIGH = VALUE_q25_upp,COEFFICIENT_OF_VARIANCE = VALUE_q25_cv)
+  ,pums_data_srvy_p %>% filter(AGEP >=25,AGEP <64,ESR ==1,WKHP >=30) %>%  group_by(YEAR,RAC1P) %>% 
+  summarise(VALUE = survey_quantile(ADJ_PINCP,c(0.50),vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'MEDIAN PERSONAL INCOME - 50 PCTL',INDICATOR_VALUE = as.double('')) %>% rename(VALUE = VALUE_q50,STANDARD_ERROR = VALUE_q50_se,CONFIDENCE_INTERVAL_LOW = VALUE_q50_low,CONFIDENCE_INTERVAL_HIGH = VALUE_q50_upp,COEFFICIENT_OF_VARIANCE = VALUE_q50_cv)
+  ,pums_data_srvy_p %>% filter(AGEP >=25,AGEP <64,ESR ==1,WKHP >=30) %>% group_by(YEAR,RAC1P) %>% 
+  summarise(VALUE = survey_quantile(ADJ_PINCP,c(0.75),vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'MEDIAN PERSONAL INCOME - 75 PCTL',INDICATOR_VALUE = as.double('')) %>% rename(VALUE = VALUE_q75,STANDARD_ERROR = VALUE_q75_se,CONFIDENCE_INTERVAL_LOW = VALUE_q75_low,CONFIDENCE_INTERVAL_HIGH = VALUE_q75_upp,COEFFICIENT_OF_VARIANCE = VALUE_q75_cv)) %>% mutate(var_code = '')
+ 
+ 
+ df_pums_ind_self_emp <- pums_data_srvy_p %>% filter(AGEP >=25,AGEP <64) %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=SELFEMPL) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'PERCENTAGE SELF EMPLOYED') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100)  %>% mutate(var_code = 'SELFEMPL')
+
+   df_pums_ind_health_insurance <- pums_data_srvy_p %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=HICOV) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'PERCENTAGE HEALTH INSURANCE NON-COVERAGE') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv)%>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100)  %>% mutate(var_code = 'HICOV')
+
+     df_pums_ind_bachelor <- pums_data_srvy_p %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=BACHELOR) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'PERCENTAGE WITH BACHELOR DEGREE OR HIGHER') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv)%>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100)  %>% mutate(var_code = 'BACHELOR')
+
+     df_pums_commute_mean <- pums_data_srvy_p %>% group_by(YEAR,RAC1P) %>% summarise(VALUE = survey_mean(JWMNP,vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'MEAN COMMUTE TIME',INDICATOR_VALUE = as.double("")) %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv)  %>% mutate(var_code = '')
+ 
+     
+df_pums_race_percentge <- pums_data_srvy_p %>% group_by(YEAR,RAC1P) %>% summarise(VALUE = survey_prop(vartype = c('se','ci','cv'))) %>% mutate(INDICATOR = 'Population Percentage',INDICATOR_VALUE = as.double('')) %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(var_code = '')
+     
+        
+     df_pums_disconnected_youth <- pums_data_srvy_p %>% filter(ESR == 6, AGEP >= 16, AGEP <=24) %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=AGEP) %>% summarise(VALUE = survey_prop(vartype =c("se", "ci",'cv'))) %>%
+       mutate(INDICATOR = 'Disconnected Youth by Age') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv)%>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100)  %>% mutate(var_code = 'AGEP')
+     
+     df_pums_unemployment_rate <- pums_data_srvy_p %>% filter(ESR == 3, AGEP >= 16) %>% group_by(YEAR,RAC1P) %>% summarise(VALUE = survey_prop(vartype =c("se", "ci",'cv'))) %>%
+       mutate(INDICATOR = 'Unemployment Rate',INDICATOR_VALUE="") %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv)%>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100)  %>% mutate(var_code = 'AGEP')
+     
+     df_pums_poverty_rate <- pums_data_srvy_p %>% filter(POVPIP <= 500,ESR == 6) %>% group_by(YEAR,RAC1P) %>% summarise(VALUE = survey_prop(vartype =c("se", "ci",'cv'))) %>%
+       mutate(INDICATOR = 'Percent Poverty Rate',INDICATOR_VALUE="") %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv)%>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100)  %>% mutate(var_code = 'POVPIP')
+     
+df_pums_ind_lf_p <- pums_data_srvy_p %>% filter(RAC1P ==1 , AGEP >=25 , AGEP <64 , ESR ==6) %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=ESR) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'PERCENTAGE LABOR FORCE PARTICIPATION') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(INDICATOR_VALUE = as.double(INDICATOR_VALUE)) %>% mutate(var_code = 'ESR')
+
+df_pums_hh_ISC_339 <- pums_data_srvy_h %>% filter(HISP >=2,HISP <= 24) %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=HISP, FS) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% filter(FS == 1) %>% mutate(INDICATOR = 'PERCENTAGE SNAP Recipiency') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(INDICATOR_VALUE = as.double(INDICATOR_VALUE)) %>% mutate(var_code = 'HISP') %>% select(-c(FS))
+
+df_pums_hh_ISC_306 <- pums_data_srvy_h %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=TEN) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'Homeownership with Mortgage') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(INDICATOR_VALUE = as.double(INDICATOR_VALUE)) %>% mutate(var_code = 'TEN')
+
+
+df_pums_hh_isc_799 <- pums_data_srvy_h %>% group_by(YEAR,RAC1P) %>% summarise(VALUE = survey_median(ELEP,vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'Median Energy Cost',INDICATOR_VALUE = as.double("")) %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv)  %>% mutate(var_code = '')
+
+df_pums_hh_ISC_360 <- pums_data_srvy_h %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=HISPEED) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'High Speed Internet Access') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(INDICATOR_VALUE = as.double(INDICATOR_VALUE)) %>% mutate(var_code = 'HISPEED')
+
+df_pums_hh_ISC_667 <- pums_data_srvy_h %>% filter(HISP >=2,HISP<=24) %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=KIT) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'Kitchen Facilities') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(INDICATOR_VALUE = as.double(INDICATOR_VALUE)) %>% mutate(var_code = 'KIT')
+
+df_pums_hh_ISC_296 <- pums_data_srvy_p %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=HICOV) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'Health Insurance by Race') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(INDICATOR_VALUE = as.double(INDICATOR_VALUE)) %>% mutate(var_code = 'HICOV')
+
+
+df_pums_hh_ISC_292 <- pums_data_srvy_p %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=JWTR) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'Commute Time by Mode of Transportation') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(INDICATOR_VALUE = as.double(INDICATOR_VALUE)) %>% mutate(var_code = 'JWTR')
+
+df_pums_hh_ISC_565 <- pums_data_srvy_p %>% group_by(YEAR,RAC1P,INDICATOR_VALUE=VEH) %>% summarise(VALUE = survey_prop(vartype = c("se", "ci",'cv'))) %>% mutate(INDICATOR = 'Vehicle Access by Race') %>% rename(STANDARD_ERROR = VALUE_se,CONFIDENCE_INTERVAL_HIGH = VALUE_upp,CONFIDENCE_INTERVAL_LOW = VALUE_low,COEFFICIENT_OF_VARIANCE = VALUE_cv) %>% mutate(VALUE = VALUE *100,STANDARD_ERROR = STANDARD_ERROR*100,CONFIDENCE_INTERVAL_HIGH = CONFIDENCE_INTERVAL_HIGH*100,CONFIDENCE_INTERVAL_LOW = CONFIDENCE_INTERVAL_LOW * 100) %>% mutate(INDICATOR_VALUE = as.double(INDICATOR_VALUE)) %>% mutate(var_code = 'VEH')
+
+
+
+```
+
+```{r}
+df_out <- rbind(df_pums_race_percentge %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_race_median_hh_income %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_race_median_fam_income %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_race_pov_percentge %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_race_c17_pov_percentge %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_race_c17_rcv_pov_percentge %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_race_homeown %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_race_rent_burden %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_ind_lf_np %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_ind_prsnl_inc_median %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_ind_self_emp %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_ind_health_insurance %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_ind_bachelor %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_commute_mean %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_disconnected_youth %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_unemployment_rate %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_poverty_rate %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_ind_lf_p %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_hh_ISC_339 %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_hh_ISC_306  %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_hh_isc_799  %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_hh_ISC_360  %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_hh_ISC_667  %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_hh_ISC_296  %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_hh_ISC_292  %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+                ,df_pums_hh_ISC_565  %>% mutate(INDICATOR_VALUE = as.character(INDICATOR_VALUE))
+               ) %>% dplyr::mutate_if(is.numeric,round,4)
+
+df_out <- df_out %>% inner_join(pums_variables %>% filter(var_code=='RAC1P') %>% mutate(val_min = as.integer(val_min)) %>% distinct(val_min,val_label),by = c('RAC1P' = 'val_min'))  %>% rename(RACE = val_label)  %>% select(-c(RAC1P)) %>% 
+  left_join(
+    pums_variables %>% filter(var_code %in% unique(df_out$var_code)) %>% 
+      mutate(YEAR = as.integer(year),val_min = as.character(val_min)) %>% distinct(YEAR,var_code,val_min,val_label)
+    ,by = c('var_code','YEAR','INDICATOR_VALUE'='val_min')) %>% 
+  select(YEAR,INDICATOR,INDICATOR_VALUE,INDICATOR_VALUE_DECODED = val_label,RACE,VALUE
+         ,STANDARD_ERROR,CONFIDENCE_INTERVAL_LOW,CONFIDENCE_INTERVAL_HIGH,COEFFICIENT_OF_VARIANCE,var_code)
+
+df_out <- df_out %>% mutate(INDICATOR_VALUE_DECODED = if_else(is.na(INDICATOR_VALUE_DECODED)
+                                                              ,if_else(var_code !=''
+                                                                       ,if_else(INDICATOR_VALUE == 1,'Y','N')
+                                                                       ,'')
+                                                              ,INDICATOR_VALUE_DECODED))
+
+df_out <- df_out %>% select(-c('var_code'))
+```
+
+
+```{r}
+write.csv(df_out,'C:/Users/pchaudh3/Dropbox (UNC Charlotte)/UI-Equity Indicators/clt-equity-indicators/Data/Pratik/PUMS_DATA_OUTPUT.csv'
+          ,row.names = F,na = "")
+```
+
+
+Calculate ratios
+
+```{r}
+df_out_ratio <- df_out %>% inner_join(df_out %>% select(YEAR,INDICATOR,INDICATOR_VALUE,RACE,VALUE)
+                                      ,by = c('YEAR','INDICATOR','INDICATOR_VALUE'))
+
+df_out_ratio <- df_out_ratio %>% filter(RACE.x != RACE.y)
+
+df_out_ratio <- df_out_ratio %>% mutate(R1.R2 = abs(round(VALUE.x/VALUE.y,3)), R2.R1 = abs(round(VALUE.y/VALUE.x,3)))
+
+df_out_ratio <- df_out_ratio %>% mutate(RATIO_KEEP = if_else(R1.R2>=1.000,R1.R2,R2.R1))
+```
+
+Write Calculated Ratio File
+```{r}
+write.csv(df_out_ratio,'C:/Users/pchaudh3/Dropbox (UNC Charlotte)/UI-Equity Indicators/clt-equity-indicators/Data/Pratik/PUMS_DATA_OUTPUT_RATIO.csv'
+          ,row.names = F,na = "")
+```
+
+
+Attach with Equity scores
+
+```{r}
+df_equity_score <- read.csv('C:/Users/pchaudh3/Dropbox (UNC Charlotte)/UI-Equity Indicators/clt-equity-indicators/Data/Equity_Indicators_Ratio-to-Score_Conversion.csv')
+names(df_equity_score) <- c('SCORE','RATIO_FROM','RATIO_TO')
+df_out_score <- df_out_ratio %>% fuzzy_left_join(df_equity_score,by = c('RATIO_KEEP'='RATIO_FROM','RATIO_KEEP'='RATIO_TO'),match_fun = list(`>=`, `<=`))
+```
+
+```{r}
+df_out_score <- df_out_score %>% select(YEAR,INDICATOR,INDICATOR_VALUE,INDICATOR_VALUE_DECODED,ETHNICITY = RACE.x,VALUE = VALUE.x,STANDARD_ERROR,CONFIDENCE_INTERVAL_LOW
+                                        ,CONFIDENCE_INTERVAL_HIGH,ETHNICITY_2 = RACE.y,VALUE_2 = VALUE.y,R1.R2,R2.R1,RATIO_KEEP,EQUITY_SCORE = SCORE)
+
+df_out_score <- df_out_score %>% mutate(EQUITY_SCORE = if_else(RATIO_KEEP>as.double(9.999),as.integer(1),EQUITY_SCORE)
+                                        ,EQUITY_RATIO_FLAG = if_else(RATIO_KEEP>as.double(9.999),"Y","N"))
+```
+
+Write Scored File
+```{r}
+write.csv(df_out_score,'C:/Users/pchaudh3/Dropbox (UNC Charlotte)/UI-Equity Indicators/clt-equity-indicators/Data/Pratik/PUMS_DATA_EQUITY_SCORED.csv'
+          ,row.names = F,na = "")
+```
