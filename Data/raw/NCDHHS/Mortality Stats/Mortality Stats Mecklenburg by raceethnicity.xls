@@ -1,0 +1,383 @@
+
+
+<!-- Define death data table for selected year -->
+
+
+<!-- Define race table for selected year -->
+ <!-- also 2004 -->
+
+
+<!-- Define GetAgeGroupTitle Function -->
+
+
+<!-- Process the Query Variables selected in dms.cfm for Detailed Mortality Statistics -->
+<!-- get county selection -->
+
+<!-- get cause of death selection -->
+   <!-- default to All Causes -->
+
+<!-- get race selection -->
+
+<!-- get gender selection -->
+
+<!-- get hispanicity selection -->
+
+
+<!-- Process the Row and Column Variables selected in dms.cfm for Detailed Mortality Statistics -->
+<!-- select row and column values -->
+
+
+<!-- IF Form.rowselect EQ 'age_group'>
+  SET row_title = "Age Group">
+  SET row_item_group = '#Form.rowselect#'>
+  SET rtable_name = "agegroups">
+  SET rtable_col_name = "age_group_id"> -->
+
+<!-- IF Form.colselect EQ 'age_group'>
+  SET column_title = "Age Group">
+  SET col_item_group = '#Form.colselect#'>
+  SET ctable_name = "agegroups">
+  SET ctable_col_name = "age_group_id"> -->
+
+
+<!-- Retrieve data from appropriate death data table -->
+
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<head>
+<title>NC SCHS: Detailed Mortality Statistics - Queryable Results</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+
+<STYLE type="text/css">	<!--
+	/* Font */
+	address, blockquote, body, caption, center, dd, dir, div, dl, dt,
+	form, h5, h6, menu, ol, p, td, th, ul {
+		font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: 10pt;
+		}
+
+	/* Real styles */
+	BODY {margin: 0em 0% 0em 0%;
+		font: 1em/1 sans-serif;
+		background: white;
+		color: black;
+ 		cursor: default}
+		
+    p { margin-right: 2px; }
+	
+	div { margin-right: 2px; }
+		
+	td img { display: block; }
+
+	h1 { font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: x-large;
+		font-weight: bold}
+
+	h2 { font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: large;
+		font-weight: bold}
+
+	h3 { font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: large}
+
+	h4 { font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: medium;
+		font-weight: bold}
+	/*Classes*/
+	A:hover.navlink {text-decoration : underline; }
+	A:hover.title {text-decoration : underline; }
+
+	A:link.bdmp {color : #0000FF;
+		background : #FFFFFF;
+		text-decoration : underline;
+		font-weight: bold;}
+	A:visited.bdmp {color : #0000FF;
+		background : #FFFFFF;
+		text-decoration : underline;
+		font-weight: bold;}
+	A:active.bdmp {color : #0000FF;
+		background : #FFFFFF;
+		text-decoration : underline;
+		font-weight: bold;}
+	A:hover.bdmp {color : #0000FF;
+		background : #FFFFBB;
+		text-decoration : underline;
+		font-weight: bold;}	
+
+	A:link.noul {
+	    text-decoration : none;}
+	A:visited.noul {
+	    text-decoration : none;}
+	A:active.noul {
+	    text-decoration : none;}
+	A:hover.noul {
+	    text-decoration : none;}
+
+	p.topline  { font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: 105%;
+		font-weight: bold}
+
+	.navlink { text-decoration: none;
+		font-size: 10pt;	
+		line-height: 130%;	
+		color: #004488}
+		
+		
+	.subnav { text-decoration: none;
+		font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: smaller;
+		color: #004488}
+
+	ul.none {list-style-type: none}
+
+	.indent {margin-left: 10%}
+
+	.footnote { font-size: 80%;
+	  text-align: center;	}
+	.boldtext { font-weight: bold; }
+	.hidden {display: none;}
+	.navbar { background: #FFFFBB;	}
+	.locbar { font-size: 75%;
+	          background: #FFFFFF;	}
+	.update { font-size: 80%;
+	  text-align: center;
+	  font-style: italic;	}
+	ul.nav {list-style-type: none;
+		margin: 0px;
+		padding-left: 5px;
+		font-weight : bold;	}
+	ul.subnav { list-style-type: none;
+		margin: 0px;
+		padding-left: 15px;}
+	.title {text-decoration: none;
+		font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: 8pt;
+		font-weight: bold;
+		color: #FFFFBB;}
+	.titlebar { background: #004488;	}
+	.titlehead {	text-decoration: none;
+		font-family: "Arial Rounded MT Bold", Arial Chicago, Helvetica, sans-serif;
+		font-size: 14pt;
+		color: #FFFFBB;	}
+	.titlenav {	text-decoration: none;
+		font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: 8pt;
+		font-weight: bold;
+		color: #004488;	}
+	-->
+</style>
+
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+
+<STYLE type="text/css">	<!--
+	/*Classes*/
+
+	.querynote { font-size: 80%;
+	  text-align: left;	}
+
+	.querytitle {	text-decoration: none;
+		font-family: Arial, Helvetica, sans-serif;
+		font-size: 8pt;
+		font-weight: bold;
+		color: #004488;	}
+	.queryresults {	text-decoration: none;
+		font-family: Arial, Helvetica, sans-serif;
+		font-size: 8pt;
+		color: #004488;	}
+	-->
+</style>
+
+
+</head>
+
+<body bgcolor="#FFFFFF">
+
+<!-- Output Header Information -->
+<table border="0" cellspacing="0" cellpadding="3">
+<tr><td align="left" colspan="2"><strong><u>Detailed Mortality Statistics in North Carolina 2019</u></strong></td></tr>
+<tr><td valign="top" align="right"><strong>Location:</strong></td>
+<td align="left">MECKLENBURG </td></tr>
+<tr><td align="right" valign="top"><strong>Cause of Death:</strong></td>
+<td>
+
+  all causes
+
+</td>
+</tr>
+<tr><td align="right" valign="top"><strong>Age at Death:</strong></td>
+<td align="left">0 - 99 years 
+<br>Note: Age 99 indicates age 99 years or older.
+
+</td>
+</tr>
+<tr><td align="right"><strong>Race:</strong></td>
+<td align="left">all</td></tr>
+<tr><td align="right"><strong>Gender:</strong></td>
+<td align="left">both</td></tr>
+<tr><td align="right"><strong>Hispanic Origin:</strong></td>
+<td align="left">all (Hispanic and Non-Hispanic)</td></tr>
+</table>
+
+<!-- Determine Columns to display based on query variable selections and column variable selection. -->
+
+
+<!-- Output Table Data -->
+
+<table border="1" cellspacing="0" cellpadding="4">
+<tr bgcolor="#CCCCCC">
+<th width="50" align="left">&nbsp;</th>
+
+
+
+<!-- Initialize row totals to 0 -->
+<th colspan="8" align="left">Hispanic Origin</th>
+</tr>
+<tr bgcolor="#CCCCCC">
+<th width="50" align="left">Race</th>
+
+ <th width="50" align="left">
+Cuban 
+ </th>
+
+ <th width="50" align="left">
+Mexican 
+ </th>
+
+ <th width="50" align="left">
+Non-Hispanic 
+ </th>
+
+ <th width="50" align="left">
+Other Hispanic 
+ </th>
+
+ <th width="50" align="left">
+Puerto Rican 
+ </th>
+
+ <th width="50" align="left">
+Central/South American 
+ </th>
+
+ <th width="50" align="left">
+Unknown 
+ </th>
+<th width="50">Total</th> 
+</tr>
+
+
+<tr>
+
+<td align="left">
+<strong>
+White 
+</strong>
+</td>
+
+<td width="50" align="right">10</td>
+
+<td width="50" align="right">23</td>
+
+<td width="50" align="right">3746</td>
+
+<td width="50" align="right">17</td>
+
+<td width="50" align="right">30</td>
+
+<td width="50" align="right">21</td>
+
+<td width="50" align="right">7</td>
+
+   <td width="50" align="right">3854</td>
+   
+</tr>
+
+<tr>
+
+<td align="left">
+<strong>
+African American 
+</strong>
+</td>
+
+<td width="50" align="right">3</td>
+
+<td width="50" align="right">3</td>
+
+<td width="50" align="right">2271</td>
+
+<td width="50" align="right">3</td>
+
+<td width="50" align="right">4</td>
+
+<td width="50" align="right">3</td>
+
+<td width="50" align="right">5</td>
+
+   <td width="50" align="right">2292</td>
+   
+</tr>
+
+<tr>
+
+<td align="left">
+<strong>
+American Indian 
+</strong>
+</td>
+
+  <td width="50" align="right">0</td>
+  
+<td width="50" align="right">1</td>
+
+<td width="50" align="right">15</td>
+
+  <td width="50" align="right">0</td>
+  
+  <td width="50" align="right">0</td>
+  
+<td width="50" align="right">1</td>
+
+<td width="50" align="right">1</td>
+
+   <td width="50" align="right">18</td>
+   
+</tr>
+
+<tr>
+
+<td align="left">
+<strong>
+Other 
+</strong>
+</td>
+
+<td width="50" align="right">8</td>
+
+<td width="50" align="right">38</td>
+
+<td width="50" align="right">149</td>
+
+<td width="50" align="right">27</td>
+
+<td width="50" align="right">13</td>
+
+<td width="50" align="right">57</td>
+
+<td width="50" align="right">3</td>
+<td width="50" align="right">295</td> 
+</tr>
+<!-- Output row totals in last row -->
+<tr>
+<td><strong>Total</strong></td> <td width="50" align="right">21</td> <td width="50" align="right">65</td> <td width="50" align="right">6181</td> <td width="50" align="right">47</td> <td width="50" align="right">47</td> <td width="50" align="right">82</td> <td width="50" align="right">16</td> <td width="50" align="right">6459</td> 
+</tr>
+
+
+</table>
+
+
+<table>
+<tr><td align="left" colspan="2" ><div class="querynote">Source: State Center for Health Statistics, North Carolina</div></td></tr>
+</table>
+
+</body></html>

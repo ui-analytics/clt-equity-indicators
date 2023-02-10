@@ -1,0 +1,453 @@
+
+
+<!-- Define birth data table for selected year -->
+
+
+<!-- Define race table for selected year -->
+
+
+<!-- Define education table for selected year -->
+
+
+<!-- Define birth weight group table for selected year -->
+
+
+<!-- Define GetAgeGroupTitle Function -->
+
+
+<!-- Define GetGestGroupTitle Function -->
+
+
+<!-- Define GetWeightGroupTitle Function -->
+
+
+<!-- Process the Query Variables selected in bd.cfm for Birth Data -->
+<!-- Look up data in table needed to retrieve appropriate birth data -->
+<!-- get age group selection -->
+
+<!-- get county selection -->
+
+
+  <!-- get race/ethnicity selection -->
+  
+  <!-- get education group selection -->
+  
+  <!-- get prenatal care selection -->
+  
+
+<!-- get gender selection -->
+
+<!-- get birth weight selection -->
+
+<!-- get plurality selection -->
+
+
+<!-- get gestation age group selection -->
+
+
+<!-- Process the Row and Column Variables selected in bd.cfm for Birth Data -->
+<!-- select row and column values -->
+
+
+<!-- Retrieve data from appropriate birth data table -->
+
+
+<!-- For performance reasons, we will only include tables in our select statement if they are needed. -->
+
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<head>
+<title>NC SCHS: Births - Queryable Results</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+
+<STYLE type="text/css">	<!--
+	/* Font */
+	address, blockquote, body, caption, center, dd, dir, div, dl, dt,
+	form, h5, h6, menu, ol, p, td, th, ul {
+		font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: 10pt;
+		}
+
+	/* Real styles */
+	BODY {margin: 0em 0% 0em 0%;
+		font: 1em/1 sans-serif;
+		background: white;
+		color: black;
+ 		cursor: default}
+		
+    p { margin-right: 2px; }
+	
+	div { margin-right: 2px; }
+		
+	td img { display: block; }
+
+	h1 { font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: x-large;
+		font-weight: bold}
+
+	h2 { font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: large;
+		font-weight: bold}
+
+	h3 { font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: large}
+
+	h4 { font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: medium;
+		font-weight: bold}
+	/*Classes*/
+	A:hover.navlink {text-decoration : underline; }
+	A:hover.title {text-decoration : underline; }
+
+	A:link.bdmp {color : #0000FF;
+		background : #FFFFFF;
+		text-decoration : underline;
+		font-weight: bold;}
+	A:visited.bdmp {color : #0000FF;
+		background : #FFFFFF;
+		text-decoration : underline;
+		font-weight: bold;}
+	A:active.bdmp {color : #0000FF;
+		background : #FFFFFF;
+		text-decoration : underline;
+		font-weight: bold;}
+	A:hover.bdmp {color : #0000FF;
+		background : #FFFFBB;
+		text-decoration : underline;
+		font-weight: bold;}	
+
+	A:link.noul {
+	    text-decoration : none;}
+	A:visited.noul {
+	    text-decoration : none;}
+	A:active.noul {
+	    text-decoration : none;}
+	A:hover.noul {
+	    text-decoration : none;}
+
+	p.topline  { font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: 105%;
+		font-weight: bold}
+
+	.navlink { text-decoration: none;
+		font-size: 10pt;	
+		line-height: 130%;	
+		color: #004488}
+		
+		
+	.subnav { text-decoration: none;
+		font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: smaller;
+		color: #004488}
+
+	ul.none {list-style-type: none}
+
+	.indent {margin-left: 10%}
+
+	.footnote { font-size: 80%;
+	  text-align: center;	}
+	.boldtext { font-weight: bold; }
+	.hidden {display: none;}
+	.navbar { background: #FFFFBB;	}
+	.locbar { font-size: 75%;
+	          background: #FFFFFF;	}
+	.update { font-size: 80%;
+	  text-align: center;
+	  font-style: italic;	}
+	ul.nav {list-style-type: none;
+		margin: 0px;
+		padding-left: 5px;
+		font-weight : bold;	}
+	ul.subnav { list-style-type: none;
+		margin: 0px;
+		padding-left: 15px;}
+	.title {text-decoration: none;
+		font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: 8pt;
+		font-weight: bold;
+		color: #FFFFBB;}
+	.titlebar { background: #004488;	}
+	.titlehead {	text-decoration: none;
+		font-family: "Arial Rounded MT Bold", Arial Chicago, Helvetica, sans-serif;
+		font-size: 14pt;
+		color: #FFFFBB;	}
+	.titlenav {	text-decoration: none;
+		font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: 8pt;
+		font-weight: bold;
+		color: #004488;	}
+	-->
+</style>
+
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+
+<STYLE type="text/css">	<!--
+	/*Classes*/
+
+	.querynote { font-size: 80%;
+	  text-align: left;	}
+
+	.querytitle {	text-decoration: none;
+		font-family: Arial, Helvetica, sans-serif;
+		font-size: 8pt;
+		font-weight: bold;
+		color: #004488;	}
+	.queryresults {	text-decoration: none;
+		font-family: Arial, Helvetica, sans-serif;
+		font-size: 8pt;
+		color: #004488;	}
+	-->
+</style>
+
+
+</head>
+
+<body bgcolor="#FFFFFF">
+
+<!-- Output Header Information -->
+<table border="0" cellspacing="0" cellpadding="3">
+<tr><td align="left" colspan="2"><strong><u>Birth Data for North Carolina 2019</u></strong></td></tr>
+<tr><td valign="top" align="right"><strong>Mother's County of Residence:</strong></td>
+<td align="left">MECKLENBURG </td></tr>
+<tr><td align="right"><strong>Child's Gender:</strong></td>
+<td align="left">both</td></tr>
+<tr><td align="right"><strong>Birth Weight:</strong></td>
+<td align="left">
+all weights 
+</td>
+<tr><td align="right"><strong>Plurality of Birth:</strong></td>
+<td align="left">all</td></tr>
+<tr><td align="right" valign="top"><strong>Mother's Age:</strong></td>
+<td align="left">
+
+  all ages
+
+</td>
+</tr>
+
+  <tr><td align="right"><strong>Mother's Race/Ethnicity:</strong></td>
+  <td align="left">all race/ethnicities</td></tr>
+
+  <tr><td align="right"><strong>Mother's Education:</strong></td>
+  <td align="left">all levels</td></tr>
+
+  <tr><td align="right"><strong>Prenatal Care Began:</strong></td>
+  <td align="left">all choices</td></tr>
+
+<tr><td align="right" valign="top"><strong>Gestation Period:</strong></td>
+<td align="left">
+all periods;
+
+</td>
+</tr>
+</table>
+
+<!-- Determine Columns to display based on query variable selections and column variable selection. -->
+
+<!-- Determine Rows to display based on query variable selections and row variable selection. -->
+
+
+<!-- Output Table Data -->
+
+<table border="1" cellspacing="0" cellpadding="4">
+<tr bgcolor="#CCCCCC">
+<th width="50" align="left">&nbsp;</th>
+
+
+
+<!-- Initialize row totals to 0 -->
+
+
+<!-- Output column headers -->
+<th colspan="4" align="left">Child's Gender</th>
+</tr>
+<tr bgcolor="#CCCCCC">
+<th width="50" align="left">Mother's Race/Ethnicity</th>
+
+ <th width="50" align="left">
+male 
+ </th>
+
+ <th width="50" align="left">
+female 
+ </th>
+
+ <th width="50" align="left">
+unknown 
+ </th>
+<th width="50">Total</th> 
+</tr>
+
+<!-- For each (row,col) output, check the result set to see if there
+is a corresponding total.  If no corresponding total, output a zero. -->
+
+
+<!-- loop through each row -->
+
+  <!-- get matching row from results table -->
+  
+
+  <tr>
+   
+   <td align="left">
+     <strong>
+White Non-Hispanic
+    </strong>
+   </td>
+
+<!-- loop through each column of each row -->
+  
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">2787</td>
+    
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">2640</td>
+    
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">1</td>
+    
+
+<!-- Output totals in last column for the current row -->
+  
+    <td width="50" align="right">5428</td>
+    
+  </tr>
+
+  <!-- get matching row from results table -->
+  
+
+  <tr>
+   
+   <td align="left">
+     <strong>
+African American Non-Hispanic
+    </strong>
+   </td>
+
+<!-- loop through each column of each row -->
+  
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">2273</td>
+    
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">2233</td>
+    
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">0</td>
+    
+
+<!-- Output totals in last column for the current row -->
+  
+    <td width="50" align="right">4506</td>
+    
+  </tr>
+
+  <!-- get matching row from results table -->
+  
+
+  <tr>
+   
+   <td align="left">
+     <strong>
+Other Non-Hispanic
+    </strong>
+   </td>
+
+<!-- loop through each column of each row -->
+  
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">677</td>
+    
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">665</td>
+    
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">0</td>
+    
+
+<!-- Output totals in last column for the current row -->
+  
+    <td width="50" align="right">1342</td>
+    
+  </tr>
+
+  <!-- get matching row from results table -->
+  
+
+  <tr>
+   
+   <td align="left">
+     <strong>
+Hispanic
+    </strong>
+   </td>
+
+<!-- loop through each column of each row -->
+  
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">1609</td>
+    
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">1513</td>
+    
+	<!-- get matching cell value from the results table -->
+    
+	<!-- if there is no cell value in the results table, output a zero -->
+    
+    <td width="50" align="right">0</td>
+    
+
+<!-- Output totals in last column for the current row -->
+  
+    <td width="50" align="right">3122</td>
+    
+  </tr>
+
+
+<!-- Output totals in last row for each column -->
+
+<tr>
+<td><strong>Total</strong></td> <td width="50" align="right">7346</td> <td width="50" align="right">7051</td> <td width="50" align="right">1</td> <td width="50" align="right">14398</td> 
+</tr>
+
+</table>
+
+<table>
+<tr><td align="left" colspan="2" ><div class="querynote">Source: State Center for Health Statistics, North Carolina</div></td></tr>
+</table>
+
+
+</body></html>
